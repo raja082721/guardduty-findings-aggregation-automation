@@ -1,0 +1,43 @@
+# REF: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+Method 1:
+Linux/Mac:
+export AWS_ACCESS_KEY_ID=
+export AWS_SECRET_ACCESS_KEY=
+export AWS_SESSION_TOKEN=
+export AWS_DEFAULT_REGION=
+export AWS_DEFAULT_OUTPUT=json
+
+Windows CMD: (set for timespan of command line being active. setx for persistent usage)
+C:\> set AWS_ACCESS_KEY_ID=
+C:\> set AWS_SECRET_ACCESS_KEY=
+C:\> set AWS_DEFAULT_REGION=
+C:\> set AWS_SESSION_TOKEN=
+
+Method 2 : AWS CLI
+aws --version # to ensure aws cli is installed
+aws configure
+ AWS Access Key ID [*************xxxx]: <Your AWS Access Key ID>
+ AWS Secret Access Key [**************xxxx]: <Your AWS Secret Access Key>
+ Default region name: [us-east-2]: us-east-2
+ Default output format [None]: json
+aws configure set aws_session_token <<your_session_token>>
+
+
+Method 3 : Manual
+create a .aws directory under your home directory : mkdir ~/.aws
+cd ~/.aws
+ [default]
+ aws_access_key_id = <Your access key>
+ aws_secret_access_key = <Your secret key>
+ aws_session_token = <your session token>
+ region = us-east-2
+ output = json
+
+TEST : aws s3 ls --profile my-temp-session   OR aws s3 ls --profile my-temp-session
+Unset the variables : unset AWS_ACCESS_KEY_ID
+
+
+Powershell : 
+Set-AWSCredentials -AccessKey <Your access key> -SecretKey <Your secret key> \
+[ -SessionToken <your session key> ] -StoreAs <SomeProfileName>
+Initialize-AWSDefaults -ProfileName <SomeProfileName> -Region us-east-2
