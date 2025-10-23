@@ -1,5 +1,6 @@
 import boto3
 import json
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from botocore.exceptions import ClientError
 
 def ensure_iam_role_multiple_trust(
@@ -31,7 +32,7 @@ def ensure_iam_role_multiple_trust(
         iam_client.create_role(
             RoleName=role_name,
             AssumeRolePolicyDocument=json.dumps(trust_policy),
-            Description=f"Role for Splunk to access S3 findings and decrypt with KMS"
+            Description="Role for Splunk to access S3 findings and decrypt with KMS"
         )
         print(f"Role '{role_name}' created.")
     except ClientError as e:
@@ -76,25 +77,31 @@ def ensure_iam_role_multiple_trust(
 
 # Example usage:
 if __name__ == "__main__":
-
-    # ----- Variables to set -----
-    role_name = "ROLENAME"
-    trusted_role_arns = [
-        "arn:aws:iam::123456789012:role/prd-role",
-        "arn:aws:iam::987654321098:role/acc-role"
-    ]
-    trusted_role_sid = "SIEMPRDRole"
-    inline_policy_name = "SplunkS3KMSReadPolicy"
-    s3_bucket_arn = "S3:ARN"
-    kms_key_arn = "KMS:ARN"  
+    parser = ArgumentParser(description="Prepare IAM trust relationship to SIEM roles",
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-r', '--role_name', required=True,
+                        help='Name of IAM role to create for SIEM service to read the GuardDuty export from S3')
+    parser.add_argument('-s', '--s3_bucket_arn', required=True,
+                        help='ARN of the S3 bucket containing the exported GuardDuty findings')
+    parser.add_argument('-k', '--kms_key_arn', required=True,
+                        help='ARN of the KMS key used to encrypt the exported GuardDuty findings')
+    parser.add_argument('--trusted_role_sid', default="SIEMPRDRole",
+                        help='SID for the SIEM roles trust relationship')
+    parser.add_argument('--inline_policy_name', default="SplunkS3KMSReadPolicy",
+                        help='Name for the inline policy for the SIEM role')
+    parser.add_argument('-t', '--trusted_role_arns', nargs="*",
+                        help='Comma separated list of ARNs of IAM roles to provide access to the S3 bucket', default=[
+                           "arn:aws:iam::123456789012:role/prd-role",
+                           "arn:aws:iam::987654321098:role/acc-role"])
+    args = parser.parse_args()
 
     iam = boto3.client("iam")
     ensure_iam_role_multiple_trust(
         iam,
-        role_name,
-        trusted_role_arns,
-        trusted_role_sid,
-        inline_policy_name,
-        s3_bucket_arn,
-        kms_key_arn
+        args['role_name'],
+        args['trusted_role_arns'],
+        args['trusted_role_sid'],
+        args['inline_policy_name'],
+        args['s3_bucket_arn'],
+        args['kms_key_arn']
     )
