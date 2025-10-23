@@ -1,11 +1,9 @@
 import boto3
 import json
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from botocore.exceptions import ClientError
 
 # CONFIGURATION
-region_kms_and_bucket = 'eu-west-1'
-bucket_name = 'guardduty-findings-9a0e87ff'  # must be globally unique
-kms_alias = 'alias/GuardDutyFindingsKey'
 account_id = boto3.client('sts').get_caller_identity()['Account']
 
 def get_guardduty_detectors():
@@ -243,32 +241,42 @@ def add_guardduty_s3_destinations(detector_map, s3_bucket_arn, kms_key_arn, expo
 
 
 if __name__ == "__main__":
+    parser = ArgumentParser(description="Setup GuardDuty export to S3 with KMS encryption",
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-r', '--region_s3', required=True,
+                        help='AWS region for KMS and S3, example: eu-west-1')
+    parser.add_argument('-b', '--bucket_name', required=True,
+                        help='Name of the S3 bucket to create for GuardDuty findings export (must be globally unique), example: guardduty-findings-9a0e87ff')
+    parser.add_argument('-a', '--kms_alias', required=True,
+                        help='Alias for the KMS key used to encrypt the findings in S3, example: alias/GuardDutyFindingsKey')
+    args = parser.parse_args()
+
     detectors = get_guardduty_detectors()
     print("Detected GuardDuty in regions and detector-ids:", detectors)
 
     # 1. Create KMS in eu-west-1 (or use existing alias)
-    kms_client = boto3.client('kms', region_name=region_kms_and_bucket)
-    key_id, key_arn = create_kms_key_and_alias(kms_client, kms_alias)
+    kms_client = boto3.client('kms', region_name=args['region_s3'])
+    key_id, key_arn = create_kms_key_and_alias(kms_client, args['kms_alias'])
     print(f"KMS key arn for policy: {key_arn}")
 
     # 2. Create S3 if not exists
-    s3_client = boto3.client('s3', region_name=region_kms_and_bucket)
-    #create_s3_bucket_if_not_exists(s3_client, bucket_name, region_kms_and_bucket)
-    create_s3_bucket(s3_client, bucket_name, region_kms_and_bucket)
+    s3_client = boto3.client('s3', region_name=args['region_s3'])
+    #create_s3_bucket_if_not_exists(s3_client, args['bucket_name'], args['region_s3'])
+    create_s3_bucket(s3_client, args['bucket_name'], args['region_s3'])
 
     # 3. Set bucket encryption
-    put_bucket_encryption(s3_client, bucket_name, key_arn)
+    put_bucket_encryption(s3_client, args['bucket_name'], key_arn)
 
     # 4. Update bucket policy for all GuardDuty-enabled regions
-    s3_policy = generate_guardduty_s3_policy(bucket_name, key_arn, account_id, detectors)
-    put_s3_bucket_policy(s3_client, bucket_name, s3_policy)
-    
+    s3_policy = generate_guardduty_s3_policy(args['bucket_name'], key_arn, account_id, detectors)
+    put_s3_bucket_policy(s3_client, args['bucket_name'], s3_policy)
+
     # 5. Update KMS policy for all GuardDuty-enabled regions
     kms_policy = generate_guardduty_kms_policy(account_id, detectors)
     put_kms_key_policy(kms_client, key_id, kms_policy)
 
     # 6. Configure GuardDuty S3 export destination in every region
-    s3_bucket_arn = f"arn:aws:s3:::{bucket_name}"
+    s3_bucket_arn = f"arn:aws:s3:::{args['bucket_name']}"
     add_guardduty_s3_destinations(detectors, s3_bucket_arn, key_arn)
 
     print("\nDONE. GuardDuty findings export is fully automated to your secure centralized bucket!")
